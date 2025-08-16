@@ -1,69 +1,80 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
-import { CheckCircle, AlertTriangle, Brain, Target } from 'lucide-react'
+import { CheckCircle, XCircle, Brain, AlertTriangle } from 'lucide-react'
 
-const WORKAHOLIC_SYMPTOMS = [
+const symptoms = [
   {
     id: 1,
-    title: "Você se orgulha de trabalhar mais horas que os outros",
-    description: "Vê horas trabalhadas como medalha de honra"
+    title: "Você Compete em Sofrimento",
+    description: "Fala sobre dormir pouco, não almoçar, trabalhar fins de semana como medalha de honra",
+    examples: ["Dormi 3 horas ontem", "Não almocei hoje, estava muito ocupado", "Faz 6 meses que não tiro um fim de semana"]
   },
   {
     id: 2,
-    title: "Você responde emails/mensagens imediatamente, mesmo fora do horário",
-    description: "Sente ansiedade quando não responde na hora"
+    title: "Você Confunde Presença com Valor",
+    description: "Mede valor pela quantidade de horas visível para outros",
+    examples: ["João sempre está online no Slack", "Maria nunca sai antes das 19h", "Pedro responde email de madrugada"]
   },
   {
     id: 3,
-    title: "Você faz tarefas que poderiam ser automatizadas ou delegadas",
-    description: "Prefere fazer você mesmo 'para garantir'"
+    title: "Você Orgulha de Não Ter Vida",
+    description: "Se vangloria de não tirar férias e trabalhar sempre",
+    examples: ["Não tirei férias em 2 anos", "Trabalho até nos fins de semana", "Minha família já acostumou que eu não estou presente"]
   },
   {
     id: 4,
-    title: "Você raramente questiona se uma tarefa é realmente necessária",
-    description: "Aceita demandas sem analisar o real valor"
+    title: "Você Usa 'Não Tenho Tempo' Como Desculpa Universal",
+    description: "Evita pensar profundamente usando falta de tempo como justificativa",
+    examples: ["Não tenho tempo para pensar nisso", "Não tenho tempo para automatizar", "Não tenho tempo para questionar se isso faz sentido"]
   },
   {
     id: 5,
-    title: "Você se sente culpado quando não está 'produzindo'",
-    description: "Tempo livre gera ansiedade ou sentimento de culpa"
+    title: "Você Mede Sucesso por Input, Não por Output",
+    description: "Foca em atividades realizadas ao invés de resultados gerados",
+    examples: ["Mandei 150 emails hoje", "Participei de 8 reuniões", "Trabalhei 12 horas"]
   },
   {
     id: 6,
-    title: "Você acredita que 'estar ocupado' é sinônimo de ser importante",
-    description: "Confunde movimento com progresso"
+    title: "Você Evita Automatização",
+    description: "Prefere fazer tarefas repetitivas manualmente",
+    examples: ["É mais rápido fazer na mão", "Não vale a pena automatizar uma coisa tão simples", "Já sei fazer, por que complicar?"]
   },
   {
     id: 7,
-    title: "Você raramente delega porque 'é mais rápido fazer sozinho'",
-    description: "Não investe tempo em treinar outros"
+    title: "Você Vicia em Urgência",
+    description: "Tudo é urgente e alta prioridade, vive reagindo",
+    examples: ["Tudo é para ontem", "Sempre em modo bombeiro", "Não consegue planejar porque tudo é urgente"]
   },
   {
     id: 8,
-    title: "Você trabalha em múltiplas tarefas simultaneamente",
-    description: "Multitasking constante sem foco profundo"
+    title: "Você Romantiza o Sacrifício",
+    description: "Acredita que sofrimento é necessário para o sucesso",
+    examples: ["Empreendedorismo exige sacrifício", "Sucesso tem preço", "Nada de valor vem fácil"]
   },
   {
     id: 9,
-    title: "Você não documenta processos porque 'não tem tempo'",
-    description: "Sempre refaz o mesmo trabalho do zero"
+    title: "Você Tem Alergia a Simplificação",
+    description: "Complexidade virou símbolo de status intelectual",
+    examples: ["Não pode ser tão simples assim", "Se fosse fácil, todo mundo fazia", "Tem que ter algum truque"]
   },
   {
     id: 10,
-    title: "Você mede sucesso por horas trabalhadas, não por resultados",
-    description: "Foca no esforço, não no impacto"
+    title: "Você Compete por Reconhecimento do Esforço",
+    description: "Precisa que vejam seu esforço para se sentir valorizado",
+    examples: ["Ninguém vê o quanto eu trabalho", "Não reconhecem minha dedicação", "Faço tudo aqui e ninguém valoriza"]
   }
 ]
 
 export default function Assessment() {
   const { session } = useAuth()
   const [answers, setAnswers] = useState({})
-  const [submitted, setSubmitted] = useState(false)
+  const [currentStep, setCurrentStep] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null)
+  const [completed, setCompleted] = useState(false)
+  const [score, setScore] = useState(0)
 
-  const handleAnswerChange = (symptomId, value) => {
+  const handleAnswer = (symptomId, value) => {
     setAnswers(prev => ({
       ...prev,
       [symptomId]: value
@@ -71,246 +82,217 @@ export default function Assessment() {
   }
 
   const calculateScore = () => {
-    const totalAnswers = Object.values(answers).length
-    if (totalAnswers === 0) return 0
-
-    const yesCount = Object.values(answers).filter(answer => answer === 'yes').length
-    const noCount = Object.values(answers).filter(answer => answer === 'no').length
+    const totalSymptoms = Object.keys(answers).length
+    const positiveAnswers = Object.values(answers).filter(answer => answer === true).length
     
-    // Score: 0-100%, where 100% = Preguiçoso Inteligente
-    // More "no" answers = higher score (better)
-    const score = Math.round((noCount / totalAnswers) * 100)
-    return score
+    // Score inverso: menos sintomas = maior score de preguiça inteligente
+    const rawScore = ((totalSymptoms - positiveAnswers) / totalSymptoms) * 100
+    return Math.round(rawScore)
   }
 
-  const getScoreLabel = (score) => {
-    if (score >= 80) return 'Preguiçoso Inteligente'
-    if (score >= 60) return 'Em Transição'
-    return 'Preguiçoso Burro'
-  }
-
-  const getScoreColor = (score) => {
-    if (score >= 80) return 'text-success-600'
-    if (score >= 60) return 'text-warning-600'
-    return 'text-danger-600'
-  }
-
-  const getRecommendations = (score) => {
-    if (score >= 80) {
-      return [
-        "Continue aplicando os princípios da Preguiça Inteligente",
-        "Compartilhe suas automações com a equipe",
-        "Mentore outros colaboradores na transição",
-        "Documente seus processos otimizados"
-      ]
-    } else if (score >= 60) {
-      return [
-        "Foque em automatizar tarefas repetitivas",
-        "Pratique dizer 'não' para demandas desnecessárias",
-        "Implemente sistemas de documentação",
-        "Delegue mais decisões, não apenas tarefas"
-      ]
-    } else {
-      return [
-        "Comece questionando: 'Por que estou fazendo isso?'",
-        "Identifique suas 3 tarefas mais repetitivas para automatizar",
-        "Estabeleça horários específicos para emails",
-        "Documente pelo menos 1 processo por semana"
-      ]
-    }
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    
-    if (Object.keys(answers).length < WORKAHOLIC_SYMPTOMS.length) {
-      alert('Por favor, responda todas as perguntas antes de continuar.')
-      return
-    }
-
+  const handleSubmit = async () => {
     setLoading(true)
-
     try {
-      const score = calculateScore()
-      const symptomsCount = Object.values(answers).filter(answer => answer === 'yes').length
-
-      // Save assessment
-      const { error: assessmentError } = await supabase
+      const finalScore = calculateScore()
+      
+      // Save assessment result
+      const { error } = await supabase
         .from('assessments')
-        .insert([{
+        .insert({
           user_id: session.user.id,
-          answers,
-          score,
-          symptoms_count: symptomsCount
-        }])
+          answers: answers,
+          score: finalScore,
+          symptoms_count: Object.values(answers).filter(answer => answer === true).length
+        })
 
-      if (assessmentError) throw assessmentError
+      if (error) throw error
 
-      // Update user profile
-      const { error: profileError } = await supabase
+      // Update user profile score
+      await supabase
         .from('user_profiles')
-        .upsert([{
+        .upsert({
           user_id: session.user.id,
-          preguica_score: score,
+          preguica_score: finalScore,
           last_assessment_date: new Date().toISOString()
-        }])
+        })
 
-      if (profileError) throw profileError
-
-      setResult({
-        score,
-        symptomsCount,
-        label: getScoreLabel(score),
-        recommendations: getRecommendations(score)
-      })
-      setSubmitted(true)
-
+      setScore(finalScore)
+      setCompleted(true)
     } catch (error) {
-      console.error('Error saving assessment:', error)
-      alert('Erro ao salvar assessment. Tente novamente.')
+      console.error('Erro ao salvar assessment:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const resetAssessment = () => {
-    setAnswers({})
-    setSubmitted(false)
-    setResult(null)
+  const getScoreInterpretation = (score) => {
+    if (score >= 80) {
+      return {
+        level: "Preguiçoso Inteligente",
+        color: "success",
+        description: "Parabéns! Você entende que eficiência > esforço. Continue aplicando os princípios.",
+        icon: CheckCircle
+      }
+    } else if (score >= 60) {
+      return {
+        level: "Em Transição",
+        color: "warning", 
+        description: "Você está no caminho certo, mas ainda tem alguns hábitos de workaholic para eliminar.",
+        icon: AlertTriangle
+      }
+    } else {
+      return {
+        level: "Preguiçoso Burro",
+        color: "danger",
+        description: "Você ainda está preso no modelo antigo. Hora de repensar sua abordagem ao trabalho.",
+        icon: XCircle
+      }
+    }
   }
 
-  if (submitted && result) {
+  if (completed) {
+    const interpretation = getScoreInterpretation(score)
+    const IconComponent = interpretation.icon
+
     return (
-      <div className="max-w-4xl mx-auto space-y-8">
-        <div className="text-center">
-          <Brain className="h-16 w-16 text-primary-600 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Resultado do Assessment
-          </h1>
-          <p className="text-gray-600">
-            Seu diagnóstico de Preguiça Inteligente
-          </p>
-        </div>
-
+      <div className="max-w-2xl mx-auto">
         <div className="card text-center">
-          <div className={`text-6xl font-bold mb-4 ${getScoreColor(result.score)}`}>
-            {result.score}%
-          </div>
-          <h2 className={`text-2xl font-bold mb-2 ${getScoreColor(result.score)}`}>
-            {result.label}
+          <IconComponent className={`h-16 w-16 mx-auto mb-4 text-${interpretation.color}-500`} />
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Seu Score: {score}%
+          </h1>
+          <h2 className={`text-xl font-semibold mb-4 text-${interpretation.color}-600`}>
+            {interpretation.level}
           </h2>
-          <p className="text-gray-600 mb-4">
-            Você apresentou {result.symptomsCount} de 10 sintomas do "culto workaholic"
+          <p className="text-gray-600 mb-6">
+            {interpretation.description}
           </p>
-        </div>
+          
+          <div className="bg-gray-50 rounded-lg p-4 mb-6">
+            <h3 className="font-semibold text-gray-900 mb-2">Próximos Passos:</h3>
+            <ul className="text-left text-sm text-gray-600 space-y-1">
+              <li>• Comece a registrar suas decisões diárias</li>
+              <li>• Identifique uma tarefa para automatizar</li>
+              <li>• Pratique dizer "não" para 1 coisa hoje</li>
+              <li>• Questione: "Por que faço isso?" antes de executar</li>
+            </ul>
+          </div>
 
-        <div className="card">
-          <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-            <Target className="h-6 w-6 mr-2" />
-            Recomendações Personalizadas
-          </h3>
-          <ul className="space-y-3">
-            {result.recommendations.map((recommendation, index) => (
-              <li key={index} className="flex items-start">
-                <CheckCircle className="h-5 w-5 text-success-600 mr-3 mt-0.5 flex-shrink-0" />
-                <span className="text-gray-700">{recommendation}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <div className="flex justify-center space-x-4">
-          <button
-            onClick={resetAssessment}
-            className="btn btn-secondary"
+          <button 
+            onClick={() => window.location.href = '/'}
+            className="btn btn-primary"
           >
-            Refazer Assessment
-          </button>
-          <a href="/" className="btn btn-primary">
             Ir para Dashboard
-          </a>
+          </button>
         </div>
       </div>
     )
   }
 
+  const currentSymptom = symptoms[currentStep]
+  const progress = ((currentStep + 1) / symptoms.length) * 100
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="text-center">
-        <AlertTriangle className="h-16 w-16 text-warning-600 mx-auto mb-4" />
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Assessment: Preguiça Inteligente
-        </h1>
-        <p className="text-gray-600">
-          Diagnóstico baseado nos 10 sintomas do "culto workaholic"
-        </p>
+    <div className="max-w-2xl mx-auto">
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-2xl font-bold text-gray-900">
+            Assessment: Preguiça Inteligente
+          </h1>
+          <span className="text-sm text-gray-500">
+            {currentStep + 1} de {symptoms.length}
+          </span>
+        </div>
+        
+        <div className="w-full bg-gray-200 rounded-full h-2">
+          <div 
+            className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
       </div>
 
       <div className="card">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-gray-900 mb-2">
-            Como funciona?
-          </h2>
-          <p className="text-gray-600">
-            Responda honestamente às perguntas abaixo. Cada "sim" indica um sintoma do workaholic inconsciente. 
-            O objetivo é ter o máximo de "não" possível, indicando que você já pensa como um preguiçoso inteligente.
-          </p>
+        <div className="flex items-start mb-6">
+          <Brain className="h-8 w-8 text-primary-600 mr-3 mt-1 flex-shrink-0" />
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900 mb-2">
+              {currentSymptom.title}
+            </h2>
+            <p className="text-gray-600 mb-4">
+              {currentSymptom.description}
+            </p>
+            
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <h4 className="font-medium text-gray-900 mb-2">Exemplos:</h4>
+              <ul className="text-sm text-gray-600 space-y-1">
+                {currentSymptom.examples.map((example, index) => (
+                  <li key={index}>• "{example}"</li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {WORKAHOLIC_SYMPTOMS.map((symptom) => (
-            <div key={symptom.id} className="border border-gray-200 rounded-lg p-4">
-              <h3 className="font-medium text-gray-900 mb-2">
-                {symptom.id}. {symptom.title}
-              </h3>
-              <p className="text-sm text-gray-600 mb-4">
-                {symptom.description}
-              </p>
-              
-              <div className="flex space-x-4">
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name={`symptom-${symptom.id}`}
-                    value="yes"
-                    checked={answers[symptom.id] === 'yes'}
-                    onChange={(e) => handleAnswerChange(symptom.id, e.target.value)}
-                    className="mr-2"
-                  />
-                  <span className="text-danger-600 font-medium">Sim</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="radio"
-                    name={`symptom-${symptom.id}`}
-                    value="no"
-                    checked={answers[symptom.id] === 'no'}
-                    onChange={(e) => handleAnswerChange(symptom.id, e.target.value)}
-                    className="mr-2"
-                  />
-                  <span className="text-success-600 font-medium">Não</span>
-                </label>
-              </div>
-            </div>
-          ))}
-
-          <div className="text-center pt-6">
+        <div className="space-y-4">
+          <p className="font-medium text-gray-900">
+            Você se identifica com este comportamento?
+          </p>
+          
+          <div className="grid grid-cols-2 gap-4">
             <button
-              type="submit"
-              disabled={loading || Object.keys(answers).length < WORKAHOLIC_SYMPTOMS.length}
-              className="btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={() => handleAnswer(currentSymptom.id, true)}
+              className={`p-4 border-2 rounded-lg transition-colors ${
+                answers[currentSymptom.id] === true
+                  ? 'border-danger-500 bg-danger-50 text-danger-700'
+                  : 'border-gray-300 hover:border-danger-300'
+              }`}
             >
-              {loading ? (
-                <div className="flex items-center">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Calculando resultado...
-                </div>
-              ) : (
-                'Ver Resultado'
-              )}
+              <XCircle className="h-6 w-6 mx-auto mb-2" />
+              <span className="font-medium">Sim, me identifico</span>
+            </button>
+            
+            <button
+              onClick={() => handleAnswer(currentSymptom.id, false)}
+              className={`p-4 border-2 rounded-lg transition-colors ${
+                answers[currentSymptom.id] === false
+                  ? 'border-success-500 bg-success-50 text-success-700'
+                  : 'border-gray-300 hover:border-success-300'
+              }`}
+            >
+              <CheckCircle className="h-6 w-6 mx-auto mb-2" />
+              <span className="font-medium">Não, não faço isso</span>
             </button>
           </div>
-        </form>
+        </div>
+
+        <div className="flex justify-between mt-8">
+          <button
+            onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+            disabled={currentStep === 0}
+            className="btn btn-secondary disabled:opacity-50"
+          >
+            Anterior
+          </button>
+          
+          {currentStep === symptoms.length - 1 ? (
+            <button
+              onClick={handleSubmit}
+              disabled={loading || Object.keys(answers).length !== symptoms.length}
+              className="btn btn-primary disabled:opacity-50"
+            >
+              {loading ? 'Calculando...' : 'Finalizar Assessment'}
+            </button>
+          ) : (
+            <button
+              onClick={() => setCurrentStep(Math.min(symptoms.length - 1, currentStep + 1))}
+              disabled={answers[currentSymptom.id] === undefined}
+              className="btn btn-primary disabled:opacity-50"
+            >
+              Próximo
+            </button>
+          )}
+        </div>
       </div>
     </div>
   )
